@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Трекер времени</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #FFFDF5;
+  --bg2: #F5EDD8;
+  --bg3: #EDE0C4;
+  --bg4: #E0D0B0;
+  --border: #D9C9A8;
+  --border2: #C8B48A;
+  --text: #3D2B1F;
+  --text2: #9C8560;
+  --text3: #B8A882;
+  --accent: #CD5C5C;
+  --accent-dim: #CD5C5C18;
+  --accent-border: #CD5C5C35;
+  --green: #5A8C4A;
+  --green-dim: #5a8c4a18;
+  --red: #CD5C5C;
+  --red-dim: #CD5C5C18;
+  --amber: #B8860B;
+  --amber-dim: #B8860B18;
+  --blue: #6B8FA8;
+  --blue-dim: #6B8FA818;
+  --olive: #808000;
+  --mono: 'DM Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+  --r: 10px;
+  --r2: 6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+/* LAYOUT */
+.shell { min-height: 100vh; }
+.sidebar { background: var(--bg2); border-right: 1px solid var(--border); padding: 24px 0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; width: 220px; height: 100vh; overflow-y: auto; z-index: 10; }
+.drag-region { -webkit-app-region: drag; height: 28px; position: fixed; top: 0; left: 0; right: 0; z-index: 999; pointer-events: none; }
+button, input, select, a { -webkit-app-region: no-drag; }
+.main { margin-left: 220px; padding: 32px 40px; width: calc(100vw - 220px); min-width: 0; overflow-x: hidden; }
+
+/* SIDEBAR */
+.logo { padding: 0 20px 24px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.logo-icon { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 15px; }
+.logo-text { font-size: 15px; font-weight: 600; letter-spacing: -.3px; }
+.nav-section { padding: 0 12px 8px; }
+.nav-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); padding: 0 8px; margin-bottom: 4px; }
+.nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: var(--r2); border: none; background: transparent; color: var(--text2); font-family: var(--sans); font-size: 13px; cursor: pointer; text-align: left; transition: all .15s; }
+.nav-btn:hover { background: var(--bg3); color: var(--text); }
+.nav-btn.active { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-border); }
+.nav-btn .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.nav-btn .badge { margin-left: auto; font-size: 11px; background: var(--bg4); color: var(--text3); padding: 1px 6px; border-radius: 10px; font-family: var(--mono); }
+.nav-sep { border: none; border-top: 1px solid var(--border); margin: 12px 12px; }
+.sidebar-footer { margin-top: auto; padding: 12px; }
+.btn-new-project { width: 100%; padding: 10px; border-radius: var(--r2); border: 1px dashed var(--border2); background: transparent; color: var(--text3); font-family: var(--sans); font-size: 13px; cursor: pointer; transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.btn-new-project:hover { border-color: var(--accent); color: var(--accent); }
+
+/* VIEWS */
+.view { display: none; }
+.view.active { display: block; }
+
+/* PAGE HEADER */
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px; gap: 16px; }
+.page-title { font-size: 22px; font-weight: 600; letter-spacing: -.4px; }
+.page-sub { font-size: 13px; color: var(--text2); margin-top: 3px; }
+
+/* BUTTONS */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--r2); font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; border: none; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { opacity: .85; }
+.btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--bg3); color: var(--text); }
+.btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid #f8717125; }
+.btn-danger:hover { background: #f8717125; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-icon-only { padding: 6px; border-radius: var(--r2); background: transparent; border: none; cursor: pointer; color: var(--text3); display: inline-flex; transition: all .15s; }
+.btn-icon-only:hover { color: var(--text); background: var(--bg3); }
+
+/* CARDS */
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; margin-bottom: 16px; }
+.card-title { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); margin-bottom: 14px; }
+
+/* PROJECT LIST */
+.project-grid { display: grid; gap: 12px; }
+.project-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 16px 20px; cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 14px; min-width: 0; overflow: hidden; }
+.project-card:hover { border-color: var(--border2); background: var(--bg3); transform: translateY(-1px); }
+.project-card.archived { opacity: .6; }
+.proj-color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.proj-info { flex: 1; min-width: 0; overflow: hidden; }
+.proj-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proj-meta { font-size: 12px; color: var(--text2); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proj-stats { display: flex; gap: 16px; flex-shrink: 0; align-items: center; }
+.proj-stat { text-align: right; }
+.proj-stat-val { font-size: 13px; font-weight: 500; font-family: var(--mono); white-space: nowrap; }
+.proj-stat-label { font-size: 11px; color: var(--text3); }
+.proj-rate-badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-family: var(--mono); font-weight: 500; white-space: nowrap; flex-shrink: 0; }
+.proj-rate-badge.good { background: var(--green-dim); color: var(--green); }
+.proj-rate-badge.warn { background: var(--amber-dim); color: var(--amber); }
+.proj-rate-badge.bad { background: var(--red-dim); color: var(--red); }
+.proj-rate-badge.neutral { background: var(--bg4); color: var(--text3); }
+
+/* PROJECT DETAIL */
+.back-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text2); background: none; border: none; cursor: pointer; padding: 0; margin-bottom: 20px; transition: color .15s; }
+.back-btn:hover { color: var(--text); }
+.proj-detail-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; gap: 12px; flex-wrap: wrap; }
+.proj-detail-name { font-size: 22px; font-weight: 600; letter-spacing: -.5px; display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.proj-detail-name span#pd-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proj-detail-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+
+/* STATS GRID */
+.stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.stat-box { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 14px 16px; min-width: 0; }
+.stat-box-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+.stat-box-val { font-size: 18px; font-weight: 500; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat-box-val.green { color: var(--green); }
+.stat-box-val.red { color: var(--red); }
+.stat-box-val.accent { color: var(--accent); }
+.stat-box-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* IDEAL BOX */
+.ideal-block { background: linear-gradient(135deg, #7c6af510, #60a5fa10); border: 1px solid var(--accent-border); border-radius: var(--r); padding: 16px 20px; margin-bottom: 16px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; min-width: 0; }
+.ideal-num { font-size: 26px; font-weight: 500; font-family: var(--mono); color: var(--accent); white-space: nowrap; }
+.ideal-info { flex: 1; min-width: 0; }
+.ideal-label { font-size: 13px; color: var(--text2); }
+.ideal-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.progress-wrap { flex: 1; min-width: 160px; }
+.progress-track { height: 4px; background: var(--bg4); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+.progress-fill { height: 100%; border-radius: 2px; transition: width .4s ease; background: var(--accent); }
+.progress-fill.danger { background: var(--red); }
+.progress-labels { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; color: var(--text3); }
+
+/* TIMER */
+.timer-block { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; margin-bottom: 16px; }
+.timer-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.timer-big { font-size: 36px; font-weight: 400; font-family: var(--mono); color: var(--text); letter-spacing: -.5px; flex-shrink: 0; white-space: nowrap; }
+.timer-task-input { flex: 1; min-width: 160px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r2); padding: 10px 14px; font-family: var(--sans); font-size: 14px; color: var(--text); outline: none; }
+.timer-task-input:focus { border-color: var(--accent); }
+.timer-task-input::placeholder { color: var(--text3); }
+.live-badge { font-size: 12px; font-family: var(--mono); font-weight: 500; padding: 4px 10px; border-radius: 20px; background: var(--green-dim); color: var(--green); display: none; white-space: nowrap; flex-shrink: 0; }
+
+/* INPUT */
+input[type=text], input[type=number], select, textarea {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r2); padding: 9px 12px;
+  font-family: var(--sans); font-size: 13px; color: var(--text); outline: none; transition: border-color .15s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+input::placeholder { color: var(--text3); }
+select option { background: var(--bg3); }
+
+/* EXPENSES */
+.expense-row { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.expense-row:last-child { border-bottom: none; }
+.exp-name { flex: 1; font-size: 13px; }
+.exp-amount { font-size: 13px; font-family: var(--mono); color: var(--red); font-weight: 500; }
+.add-expense-form { display: none; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+.add-expense-form.open { display: flex; }
+.costs-total { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg3); border-radius: var(--r2); margin-top: 10px; font-size: 13px; color: var(--text2); }
+.costs-total span:last-child { font-family: var(--mono); color: var(--red); font-weight: 500; }
+
+/* LOG */
+.log-row { display: grid; grid-template-columns: 8px 1fr auto auto auto; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.log-row:last-child { border-bottom: none; }
+.log-color { width: 8px; height: 8px; border-radius: 50%; }
+.log-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-dur { font-size: 12px; font-family: var(--mono); color: var(--text2); }
+.log-time { font-size: 11px; color: var(--text3); }
+
+/* MODAL */
+.modal-overlay { position: fixed; inset: 0; background: #00000090; backdrop-filter: blur(4px); z-index: 100; display: none; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px; padding: 28px; width: 420px; max-width: 95vw; }
+.modal h2 { font-size: 18px; font-weight: 600; margin-bottom: 20px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 5px; }
+.field input, .field select { width: 100%; }
+.field-row { display: flex; gap: 8px; }
+.field-row .field { flex: 1; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+/* COLOR DOTS */
+.c-violet { background: #a78bfa; }
+.c-blue { background: #60a5fa; }
+.c-green { background: #4ade80; }
+.c-amber { background: #fbbf24; }
+.c-red { background: #f87171; }
+.c-pink { background: #f472b6; }
+
+/* VERDICT */
+.verdict { font-size: 13px; padding: 12px 16px; border-radius: var(--r2); margin-top: 10px; display: none; }
+.verdict.good { background: var(--green-dim); color: var(--green); border: 1px solid #4ade8025; }
+.verdict.warn { background: var(--amber-dim); color: var(--amber); border: 1px solid #fbbf2425; }
+.verdict.bad { background: var(--red-dim); color: var(--red); border: 1px solid #f8717125; }
+
+/* EMPTY */
+.empty { text-align: center; padding: 48px 20px; color: var(--text3); }
+.empty-icon { font-size: 36px; margin-bottom: 12px; }
+.empty p { font-size: 14px; }
+
+/* SECTION ROW */
+.section-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.section-label { font-size: 12px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
+
+/* ARCHIVE TAG */
+.archive-tag { font-size: 10px; padding: 2px 7px; border-radius: 10px; background: var(--bg4); color: var(--text3); font-family: var(--mono); margin-left: 8px; vertical-align: middle; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* COLOR PICKER */
+.color-picker { display: flex; gap: 8px; flex-wrap: wrap; }
+.color-option { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all .15s; }
+.color-option.selected { border-color: var(--text); transform: scale(1.15); }
+
+/* FACT RATE block inside project */
+.fact-rate-block { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); padding: 14px 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; min-width: 0; }
+.fact-rate-main { font-size: 28px; font-weight: 500; font-family: var(--mono); color: var(--green); white-space: nowrap; }
+.fact-rate-label { font-size: 12px; color: var(--text2); }
+.fact-rate-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="drag-region"></div>
+<div class="shell">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">⏱</div>
+      <span class="logo-text">Трекер</span>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Меню</div>
+      <button class="nav-btn active" onclick="showView('dashboard')" id="nav-dashboard">
+        <span style="font-size:15px;">⊞</span> Дашборд
+      </button>
+    </div>
+    <div class="nav-section" style="margin-top:8px;">
+      <div class="nav-label">Текущие проекты</div>
+      <div id="sidebar-active"></div>
+    </div>
+    <hr class="nav-sep">
+    <div class="nav-section">
+      <div class="nav-label">Архив</div>
+      <div id="sidebar-archived"></div>
+    </div>
+    <div class="sidebar-footer">
+      <button class="btn-new-project" onclick="openModal()">＋ Новый проект</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="view active" id="view-dashboard">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Дашборд</div>
+          <div class="page-sub" id="dash-date"></div>
+        </div>
+        <button class="btn btn-primary" onclick="openModal()">＋ Новый проект</button>
+      </div>
+
+      <div class="stats-grid" id="dash-stats-grid">
+        <div class="stat-box"><div class="stat-box-label">Проектов</div><div class="stat-box-val" style="color:var(--olive)" id="ds-projects">0</div></div>
+        <div class="stat-box"><div class="stat-box-label">Всего часов</div><div class="stat-box-val" id="ds-hours">0ч</div></div>
+        <div class="stat-box"><div class="stat-box-label">В работе</div><div class="stat-box-val green" id="ds-active">0</div></div>
+        <div class="stat-box"><div class="stat-box-label">В архиве</div><div class="stat-box-val" id="ds-archived">0</div></div>
+      </div>
+
+      <div class="section-row" style="margin-top:24px;">
+        <span class="section-label">Активные проекты</span>
+      </div>
+      <div id="dash-active-list"></div>
+
+      <div class="section-row" style="margin-top:24px;">
+        <span class="section-label">Архив</span>
+      </div>
+      <div id="dash-archive-list"></div>
+    </div>
+
+    <!-- PROJECT DETAIL -->
+    <div class="view" id="view-project">
+      <button class="back-btn" onclick="showView('dashboard')">← Все проекты</button>
+      <div class="proj-detail-header">
+        <div class="proj-detail-name">
+          <span class="proj-color" id="pd-color" style="width:12px;height:12px;border-radius:50%;display:inline-block;flex-shrink:0;"></span>
+          <span id="pd-name"></span>
+          <span id="pd-archive-tag" class="archive-tag" style="display:none;">архив</span>
+        </div>
+        <div class="proj-detail-actions">
+          <button class="btn btn-ghost btn-sm" onclick="toggleArchive()" id="pd-archive-btn">Архивировать</button>
+          <button class="btn btn-ghost btn-sm" onclick="editProject()">Изменить</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteProject()">Удалить</button>
+        </div>
+      </div>
+
+      <!-- STATS -->
+      <div class="stats-grid" id="pd-stats"></div>
+
+      <!-- IDEAL HOURS -->
+      <div class="ideal-block" id="pd-ideal" style="display:none;">
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em;">Идеальный максимум</div>
+          <div class="ideal-num" id="pd-ideal-num">—</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;" id="pd-ideal-sub"></div>
+        </div>
+        <div class="progress-wrap" id="pd-progress-wrap" style="display:none;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);">
+            <span id="pd-prog-spent"></span>
+            <span id="pd-prog-pct"></span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" id="pd-prog-bar" style="width:0%"></div></div>
+          <div class="progress-labels"><span id="pd-prog-remaining"></span></div>
+        </div>
+      </div>
+
+      <!-- FACT RATE -->
+      <div class="fact-rate-block" id="pd-fact-rate" style="display:none;">
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em;">Фактическая ставка</div>
+          <div class="fact-rate-main" id="pd-fact-rate-val">—</div>
+        </div>
+        <div style="flex:1;">
+          <div class="fact-rate-label" id="pd-fact-rate-time"></div>
+          <div class="fact-rate-sub" id="pd-fact-rate-costs"></div>
+        </div>
+        <div id="pd-verdict-badge"></div>
+      </div>
+      <div class="verdict" id="pd-verdict"></div>
+
+      <!-- TIMER -->
+      <div id="pd-timer-section">
+        <div class="section-row"><span class="section-label">Таймер</span></div>
+        <div class="timer-block">
+          <div class="timer-row">
+            <div class="timer-big" id="pd-timer">00:00:00</div>
+            <input type="text" class="timer-task-input" id="pd-task-input" placeholder="Название задачи…" />
+            <span class="live-badge" id="pd-live-badge"></span>
+            <button class="btn btn-ghost btn-sm" id="pd-discard-btn" onclick="discardTimer()" style="display:none;">✕</button>
+            <button class="btn btn-sm" id="pd-start-btn" onclick="toggleTimer()" style="background:var(--green-dim);color:var(--green);border:1px solid #4ade8025;">▶ Старт</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- EXPENSES -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <span class="card-title" style="margin-bottom:0;">Издержки</span>
+          <button class="btn btn-ghost btn-sm" onclick="toggleExpenseForm()">＋ Добавить</button>
+        </div>
+        <div id="pd-expenses-list"></div>
+        <div class="add-expense-form" id="pd-add-form">
+          <input type="text" id="pd-exp-name" placeholder="Название (напр. Midjourney)" style="flex:1;min-width:140px;" />
+          <input type="number" id="pd-exp-amount" placeholder="Сумма" min="0" style="width:100px;" />
+          <button class="btn btn-sm" onclick="addExpense()" style="background:var(--green-dim);color:var(--green);border:1px solid #4ade8025;">✓</button>
+          <button class="btn btn-ghost btn-sm" onclick="cancelExpenseForm()">✕</button>
+        </div>
+        <div class="costs-total" id="pd-costs-total" style="display:none;">
+          <span>Итого издержки</span><span id="pd-costs-total-val"></span>
+        </div>
+      </div>
+
+      <!-- LOG -->
+      <div class="card">
+        <div class="card-title">История задач</div>
+        <div id="pd-log-list"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL: NEW / EDIT PROJECT -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <h2 id="modal-title">Новый проект</h2>
+    <div class="field">
+      <label>Название проекта</label>
+      <input type="text" id="m-name" placeholder="Например, Видео для бренда X" />
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Бюджет</label>
+        <input type="number" id="m-budget" placeholder="Сколько заплатят" min="0" />
+      </div>
+      <div class="field" style="flex:0 0 90px;">
+        <label>Валюта</label>
+        <select id="m-currency">
+          <option value="₽">₽ RUB</option>
+          <option value="$">$ USD</option>
+          <option value="€">€ EUR</option>
+          <option value="₸">₸ KZT</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Желаемая ставка / час</label>
+      <input type="number" id="m-desired" placeholder="Мин. ставка (необязательно)" min="0" />
+    </div>
+    <div class="field">
+      <label>Цвет</label>
+      <div class="color-picker" id="m-color-picker">
+        <div class="color-option c-violet selected" data-color="violet" onclick="selectColor(this)"></div>
+        <div class="color-option c-blue" data-color="blue" onclick="selectColor(this)"></div>
+        <div class="color-option c-green" data-color="green" onclick="selectColor(this)"></div>
+        <div class="color-option c-amber" data-color="amber" onclick="selectColor(this)"></div>
+        <div class="color-option c-red" data-color="red" onclick="selectColor(this)"></div>
+        <div class="color-option c-pink" data-color="pink" onclick="selectColor(this)"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveProject()" id="modal-save-btn">Создать</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// =================== STATE ===================
+let projects = JSON.parse(localStorage.getItem('tt_projects') || '[]');
+let currentProjectId = null;
+let timerRunning = false, timerStart = null, timerElapsed = 0, timerInterval = null;
+let editingProjectId = null;
+let selectedColor = 'violet';
+
+const colorMap = { violet:'#a78bfa', blue:'#60a5fa', green:'#4ade80', amber:'#fbbf24', red:'#f87171', pink:'#f472b6' };
+
+function save() { localStorage.setItem('tt_projects', JSON.stringify(projects)); }
+function getProject(id) { return projects.find(p => String(p.id) === String(id)); }
+function pad(n) { return String(n).padStart(2,'0'); }
+function formatMs(ms) { const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60; return pad(h)+':'+pad(m)+':'+pad(sec); }
+function formatShort(ms) { const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60); if(h>0)return h+'ч '+m+'м'; return m+'м '+Math.floor(s%60)+'с'; }
+function formatHrs(hrs) { const h=Math.floor(hrs),m=Math.round((hrs-h)*60); if(m===0)return h+'ч'; return h+'ч '+m+'м'; }
+function totalMs(proj) { return (proj.log||[]).reduce((s,e)=>s+e.elapsed,0); }
+function totalExp(proj) { return (proj.expenses||[]).reduce((s,e)=>s+e.amount,0); }
+function fmt(proj, v) { return (proj.currency||'₽')+Math.round(v).toLocaleString('ru-RU'); }
+
+// =================== VIEWS ===================
+function showView(name, projectId) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  if(name==='dashboard') {
+    document.getElementById('nav-dashboard').classList.add('active');
+    renderDashboard();
+  }
+  if(name==='project' && projectId) {
+    currentProjectId = projectId;
+    renderProject();
+    // highlight in sidebar
+    document.querySelectorAll('.nav-btn[data-proj-id]').forEach(b=>{
+      b.classList.toggle('active', b.dataset.projId===String(projectId));
+    });
+  }
+  // Stop timer if leaving project
+  if(name!=='project' && timerRunning) stopTimer(true);
+}
+
+// =================== DASHBOARD ===================
+function renderDashboard() {
+  document.getElementById('dash-date').textContent = new Date().toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'});
+  const active = projects.filter(p=>!p.archived);
+  const archived = projects.filter(p=>p.archived);
+  document.getElementById('ds-projects').textContent = projects.length;
+  const allMs = projects.reduce((s,p)=>s+totalMs(p),0);
+  const h=Math.floor(allMs/3600000),m=Math.floor((allMs%3600000)/60000);
+  document.getElementById('ds-hours').textContent = h+'ч '+m+'м';
+  document.getElementById('ds-active').textContent = active.length;
+  document.getElementById('ds-archived').textContent = archived.length;
+
+  renderProjectList('dash-active-list', active);
+  renderProjectList('dash-archive-list', archived, true);
+  renderSidebar();
+}
+
+function renderProjectList(containerId, list, archived=false) {
+  const el = document.getElementById(containerId);
+  if(!list.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">${archived?'📦':'🗂️'}</div><p>${archived?'Архив пуст':'Нет активных проектов'}</p></div>`;
+    return;
+  }
+  el.innerHTML = list.map(p => {
+    const ms = totalMs(p);
+    const h = Math.floor(ms/3600000), min = Math.floor((ms%3600000)/60000);
+    const exp = totalExp(p);
+    const net = p.budget ? p.budget - exp : null;
+    const hrs = ms / 3600000;
+    const rate = (net && hrs > 0.001) ? net/hrs : null;
+    let badgeHtml = '';
+    if(rate && p.budget) {
+      if(p.desiredRate) {
+        const cls = rate>=p.desiredRate*1.1?'good':rate>=p.desiredRate?'good':rate>=p.desiredRate*.8?'warn':'bad';
+        badgeHtml = `<span class="proj-rate-badge ${cls}">${fmt(p,rate)}/ч</span>`;
+      } else {
+        badgeHtml = `<span class="proj-rate-badge neutral">${fmt(p,rate)}/ч</span>`;
+      }
+    }
+    return `<div class="project-card${archived?' archived':''}" onclick="showView('project','${p.id}')">
+      <div class="proj-color" style="background:${colorMap[p.color]||colorMap.violet}"></div>
+      <div class="proj-info">
+        <div class="proj-name">${p.name}</div>
+        <div class="proj-meta">${p.budget?fmt(p,p.budget)+' · ':''} создан ${new Date(p.createdAt).toLocaleDateString('ru-RU')}</div>
+      </div>
+      <div class="proj-stats">
+        <div class="proj-stat"><div class="proj-stat-val">${h}ч ${min}м</div><div class="proj-stat-label">времени</div></div>
+        ${p.budget?`<div class="proj-stat"><div class="proj-stat-val" style="color:${colorMap[p.color]||colorMap.violet}">${fmt(p,p.budget)}</div><div class="proj-stat-label">бюджет</div></div>`:''}
+      </div>
+      ${badgeHtml}
+    </div>`;
+  }).join('');
+}
+
+function renderSidebar() {
+  const active = projects.filter(p=>!p.archived);
+  const archived = projects.filter(p=>p.archived);
+  document.getElementById('sidebar-active').innerHTML = active.map(p=>`
+    <button class="nav-btn" data-proj-id="${p.id}" onclick="showView('project','${p.id}')">
+      <span class="dot" style="background:${colorMap[p.color]||colorMap.violet}"></span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</span>
+    </button>`).join('') || '<div style="padding:4px 10px;font-size:12px;color:var(--text3);">Нет проектов</div>';
+  document.getElementById('sidebar-archived').innerHTML = archived.map(p=>`
+    <button class="nav-btn" data-proj-id="${p.id}" onclick="showView('project','${p.id}')">
+      <span class="dot" style="background:${colorMap[p.color]||colorMap.violet};opacity:.5"></span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.6;">${p.name}</span>
+    </button>`).join('') || '<div style="padding:4px 10px;font-size:12px;color:var(--text3);">Архив пуст</div>';
+}
+
+// =================== PROJECT DETAIL ===================
+function renderProject() {
+  const p = getProject(currentProjectId);
+  if(!p) return;
+  document.getElementById('pd-name').textContent = p.name;
+  document.getElementById('pd-color').style.background = colorMap[p.color]||colorMap.violet;
+  document.getElementById('pd-archive-tag').style.display = p.archived?'':'none';
+  document.getElementById('pd-archive-btn').textContent = p.archived?'Восстановить':'Архивировать';
+  document.getElementById('pd-timer-section').style.display = p.archived?'none':'';
+
+  const ms = totalMs(p);
+  const hrs = ms/3600000;
+  const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000);
+  const exp = totalExp(p);
+  const net = p.budget ? p.budget - exp : null;
+  const rate = (net && hrs > 0.001) ? net/hrs : null;
+
+  // Stats
+  document.getElementById('pd-stats').innerHTML = `
+    <div class="stat-box"><div class="stat-box-label">Потрачено времени</div><div class="stat-box-val">${h}ч ${m}м</div></div>
+    <div class="stat-box"><div class="stat-box-label">Бюджет</div><div class="stat-box-val accent">${p.budget?fmt(p,p.budget):'—'}</div></div>
+    <div class="stat-box"><div class="stat-box-label">Издержки</div><div class="stat-box-val red">${exp>0?'−'+fmt(p,exp):'—'}</div></div>
+    <div class="stat-box"><div class="stat-box-label">Чистый доход</div><div class="stat-box-val green">${net?fmt(p,net):'—'}</div></div>
+  `;
+
+  // Ideal hours
+  const idealEl = document.getElementById('pd-ideal');
+  if(p.budget && p.desiredRate && net) {
+    const idealHrs = net / p.desiredRate;
+    document.getElementById('pd-ideal-num').textContent = formatHrs(idealHrs);
+    document.getElementById('pd-ideal-sub').textContent = 'при ставке '+fmt(p,p.desiredRate)+'/ч';
+    idealEl.style.display = 'flex';
+    if(hrs > 0.001) {
+      const pct = Math.min(hrs/idealHrs*100,100);
+      const rem = idealHrs - hrs;
+      document.getElementById('pd-prog-bar').style.width = Math.round(pct)+'%';
+      document.getElementById('pd-prog-bar').className = 'progress-fill'+(rem<0?' danger':'');
+      document.getElementById('pd-prog-spent').textContent = 'Потрачено '+formatShort(ms);
+      document.getElementById('pd-prog-pct').textContent = Math.round(pct)+'%';
+      document.getElementById('pd-prog-remaining').textContent = rem>0 ? 'Осталось '+formatHrs(rem) : 'Превышено на '+formatHrs(-rem);
+      document.getElementById('pd-progress-wrap').style.display = '';
+    } else {
+      document.getElementById('pd-progress-wrap').style.display = 'none';
+    }
+  } else { idealEl.style.display = 'none'; }
+
+  // Fact rate
+  const frEl = document.getElementById('pd-fact-rate');
+  if(p.budget && hrs > 0.001) {
+    document.getElementById('pd-fact-rate-val').textContent = fmt(p, rate||0)+'/ч';
+    document.getElementById('pd-fact-rate-time').textContent = 'за '+formatShort(ms);
+    document.getElementById('pd-fact-rate-costs').textContent = exp>0?'−'+fmt(p,exp)+' издержек':'';
+    frEl.style.display = 'flex';
+    const vd = document.getElementById('pd-verdict');
+    const vbadge = document.getElementById('pd-verdict-badge');
+    if(p.desiredRate && rate) {
+      let cls,txt;
+      if(rate>=p.desiredRate*1.1){cls='good';txt='Выгодно';}
+      else if(rate>=p.desiredRate){cls='good';txt='Ок';}
+      else if(rate>=p.desiredRate*.8){cls='warn';txt='Маловато';}
+      else{cls='bad';txt='В минус';}
+      vbadge.innerHTML = `<span class="proj-rate-badge ${cls}">${txt}</span>`;
+    } else { vbadge.innerHTML=''; }
+  } else { frEl.style.display='none'; document.getElementById('pd-verdict').style.display='none'; document.getElementById('pd-verdict-badge').innerHTML=''; }
+
+  renderExpenses();
+  renderLog();
+  renderSidebar();
+}
+
+// =================== TIMER ===================
+function toggleTimer() {
+  if(!timerRunning) {
+    // START
+    timerRunning = true;
+    timerStart = Date.now();
+    timerElapsed = 0;
+    const btn = document.getElementById('pd-start-btn');
+    btn.style.background='var(--red-dim)';btn.style.color='var(--red)';btn.style.borderColor='#f8717125';
+    btn.textContent='■ Стоп';
+    document.getElementById('pd-discard-btn').style.display='';
+    timerInterval = setInterval(()=>{
+      timerElapsed = Date.now() - timerStart;
+      document.getElementById('pd-timer').textContent = formatMs(timerElapsed);
+      // update live rate badge only
+      const p = getProject(currentProjectId);
+      if(p && p.budget) {
+        const ms = totalMs(p) + timerElapsed;
+        const hrs = ms / 3600000;
+        const exp = totalExp(p);
+        const net = p.budget - exp;
+        if(hrs > 0.001) {
+          document.getElementById('pd-live-badge').style.display='';
+          document.getElementById('pd-live-badge').textContent = fmt(p, net/hrs)+'/ч';
+        }
+      }
+    }, 1000);
+  } else {
+    // STOP
+    saveTimerEntry();
+  }
+}
+
+function saveTimerEntry() {
+  timerRunning = false;
+  clearInterval(timerInterval);
+  const elapsed = Date.now() - timerStart;
+  console.log('saveTimerEntry called, elapsed:', elapsed, 'currentProjectId:', currentProjectId, 'timerStart:', timerStart);
+  if(elapsed > 1000) {
+    const p = getProject(currentProjectId);
+    console.log('project found:', p ? p.name : 'NOT FOUND', 'projects count:', projects.length);
+    if(p) {
+      if(!p.log) p.log = [];
+      const taskName = document.getElementById('pd-task-input').value.trim() || 'Без названия';
+      p.log.unshift({
+        name: taskName,
+        elapsed: elapsed,
+        time: new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),
+        date: new Date().toLocaleDateString('ru-RU')
+      });
+      localStorage.setItem('tt_projects', JSON.stringify(projects));
+    }
+  }
+  timerElapsed = 0;
+  timerStart = null;
+  document.getElementById('pd-timer').textContent='00:00:00';
+  document.getElementById('pd-live-badge').style.display='none';
+  document.getElementById('pd-task-input').value='';
+  const btn = document.getElementById('pd-start-btn');
+  btn.style.background='var(--green-dim)';btn.style.color='var(--green)';btn.style.borderColor='#4ade8025';
+  btn.textContent='▶ Старт';
+  document.getElementById('pd-discard-btn').style.display='none';
+  renderProject();
+}
+
+function stopTimer(shouldSave) {
+  if(shouldSave) {
+    saveTimerEntry();
+  } else {
+    timerRunning = false;
+    clearInterval(timerInterval);
+    timerElapsed = 0;
+    timerStart = null;
+    document.getElementById('pd-timer').textContent='00:00:00';
+    document.getElementById('pd-live-badge').style.display='none';
+    const btn = document.getElementById('pd-start-btn');
+    btn.style.background='var(--green-dim)';btn.style.color='var(--green)';btn.style.borderColor='#4ade8025';
+    btn.textContent='▶ Старт';
+    document.getElementById('pd-discard-btn').style.display='none';
+  }
+}
+function discardTimer() { stopTimer(false); }
+
+// =================== EXPENSES ===================
+function toggleExpenseForm() { document.getElementById('pd-add-form').classList.toggle('open'); }
+function cancelExpenseForm() { document.getElementById('pd-add-form').classList.remove('open'); document.getElementById('pd-exp-name').value=''; document.getElementById('pd-exp-amount').value=''; }
+function addExpense() {
+  const name=document.getElementById('pd-exp-name').value.trim()||'Расход';
+  const amount=parseFloat(document.getElementById('pd-exp-amount').value)||0;
+  if(amount<=0){document.getElementById('pd-exp-amount').focus();return;}
+  const p=getProject(currentProjectId); if(!p)return;
+  if(!p.expenses)p.expenses=[];
+  p.expenses.push({name,amount,id:Date.now()});
+  save2(); cancelExpenseForm(); renderProject();
+}
+function deleteExpense(id) {
+  const p=getProject(currentProjectId); if(!p)return;
+  p.expenses=(p.expenses||[]).filter(e=>e.id!==id);
+  save2(); renderProject();
+}
+function renderExpenses() {
+  const p=getProject(currentProjectId); if(!p)return;
+  const list=p.expenses||[];
+  const el=document.getElementById('pd-expenses-list');
+  const totEl=document.getElementById('pd-costs-total');
+  if(!list.length){el.innerHTML='<div style="font-size:13px;color:var(--text3);padding:8px 0;">Издержек нет</div>';totEl.style.display='none';return;}
+  el.innerHTML=list.map(e=>`<div class="expense-row">
+    <span class="exp-name">${e.name}</span>
+    <span class="exp-amount">−${fmt(p,e.amount)}</span>
+    <button class="btn-icon-only" onclick="deleteExpense(${e.id})">✕</button>
+  </div>`).join('');
+  totEl.style.display='flex';
+  document.getElementById('pd-costs-total-val').textContent='−'+fmt(p,totalExp(p));
+}
+
+// =================== LOG ===================
+function deleteLogEntry(i) {
+  const p=getProject(currentProjectId); if(!p)return;
+  p.log.splice(i,1); save2(); renderProject();
+}
+function renderLog() {
+  const p=getProject(currentProjectId); if(!p)return;
+  const log=p.log||[];
+  const el=document.getElementById('pd-log-list');
+  if(!log.length){el.innerHTML='<div style="font-size:13px;color:var(--text3);padding:8px 0;">Записей пока нет</div>';return;}
+  el.innerHTML=log.map((e,i)=>`<div class="log-row">
+    <div class="log-color" style="background:${colorMap[p.color]||colorMap.violet}"></div>
+    <span class="log-name">${e.name}</span>
+    <span class="log-dur">${formatShort(e.elapsed)}</span>
+    <span class="log-time">${e.date||''} ${e.time}</span>
+    <button class="btn-icon-only" onclick="deleteLogEntry(${i})">✕</button>
+  </div>`).join('');
+}
+
+// =================== PROJECTS CRUD ===================
+function openModal(editId=null) {
+  editingProjectId=editId;
+  const p=editId?getProject(editId):null;
+  document.getElementById('modal-title').textContent=editId?'Изменить проект':'Новый проект';
+  document.getElementById('modal-save-btn').textContent=editId?'Сохранить':'Создать';
+  document.getElementById('m-name').value=p?p.name:'';
+  document.getElementById('m-budget').value=p&&p.budget?p.budget:'';
+  document.getElementById('m-currency').value=p?p.currency:'₽';
+  document.getElementById('m-desired').value=p&&p.desiredRate?p.desiredRate:'';
+  selectedColor=p?p.color:'violet';
+  document.querySelectorAll('.color-option').forEach(o=>{o.classList.toggle('selected',o.dataset.color===selectedColor);});
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('m-name').focus(),100);
+}
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); editingProjectId=null; }
+function closeModalOutside(e) { if(e.target===document.getElementById('modal-overlay'))closeModal(); }
+function selectColor(el) { selectedColor=el.dataset.color; document.querySelectorAll('.color-option').forEach(o=>o.classList.toggle('selected',o===el)); }
+
+function saveProject() {
+  const name=document.getElementById('m-name').value.trim();
+  if(!name)return document.getElementById('m-name').focus();
+  const budget=parseFloat(document.getElementById('m-budget').value)||null;
+  const currency=document.getElementById('m-currency').value;
+  const desiredRate=parseFloat(document.getElementById('m-desired').value)||null;
+  if(editingProjectId) {
+    const p=getProject(editingProjectId);
+    if(p){p.name=name;p.budget=budget;p.currency=currency;p.desiredRate=desiredRate;p.color=selectedColor;}
+  } else {
+    projects.push({id:Date.now(),name,budget,currency,desiredRate,color:selectedColor,archived:false,createdAt:Date.now(),log:[],expenses:[]});
+  }
+  save2(); closeModal(); renderDashboard();
+  if(editingProjectId) renderProject();
+}
+
+function editProject() { openModal(currentProjectId); }
+function deleteProject() {
+  if(!confirm('Удалить проект? Это действие нельзя отменить.'))return;
+  projects=projects.filter(p=>p.id!==currentProjectId);
+  save2(); showView('dashboard');
+}
+function toggleArchive() {
+  const p=getProject(currentProjectId); if(!p)return;
+  p.archived=!p.archived; save2(); renderProject(); renderSidebar();
+}
+function save2() { localStorage.setItem('tt_projects', JSON.stringify(projects)); }
+
+// Enter in modal
+document.getElementById('m-name').addEventListener('keydown',e=>{if(e.key==='Enter')saveProject();});
+
+// =================== INIT ===================
+document.getElementById('dash-date').textContent='';
+renderDashboard();
+showView('dashboard');
+</script>
+</body>
+</html>
