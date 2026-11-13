@@ -169,6 +169,9 @@ select option { background: var(--bg3); }
 .log-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-dur { font-size: 12px; font-family: var(--mono); color: var(--text2); }
 .log-time { font-size: 11px; color: var(--text3); }
+.manual-log-row { display: grid; grid-template-columns: minmax(120px, 1fr) 76px 82px auto auto; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.manual-log-row input { min-width: 0; width: 100%; }
+@media (max-width: 560px) { .manual-log-row { grid-template-columns: 1fr 1fr; } .manual-log-row input:first-child { grid-column: 1 / -1; } }
 
 /* MODAL */
 .modal-overlay { position: fixed; inset: 0; background: #00000090; backdrop-filter: blur(4px); z-index: 100; display: none; align-items: center; justify-content: center; }
@@ -369,7 +372,10 @@ select option { background: var(--bg3); }
 
       <!-- LOG -->
       <div class="card">
-        <div class="card-title">История задач</div>
+        <div class="section-row">
+          <span class="section-label">История задач</span>
+          <button class="btn btn-ghost btn-sm" onclick="openManualLogEntry()">＋ Добавить</button>
+        </div>
         <div id="pd-log-list"></div>
       </div>
     </div>
@@ -435,6 +441,7 @@ let projects = JSON.parse(localStorage.getItem('tt_projects') || '[]');
 let currentProjectId = null;
 let timerRunning = false, timerStart = null, timerElapsed = 0, timerInterval = null;
 let editingProjectId = null;
+let manualLogFormOpen = false;
 let selectedColor = 'violet';
 
 const colorMap = { violet:'#AFEEEE', blue:'#8cb8d0', green:'#7db86e', amber:'#c8a84b', red:'#CD5C5C', pink:'#d4a0a0' };
@@ -737,14 +744,52 @@ function renderLog() {
   const p=getProject(currentProjectId); if(!p)return;
   const log=p.log||[];
   const el=document.getElementById('pd-log-list');
-  if(!log.length){el.innerHTML='<div style="font-size:13px;color:var(--text3);padding:8px 0;">Записей пока нет</div>';return;}
-  el.innerHTML=log.map((e,i)=>`<div class="log-row">
+  const form=manualLogFormOpen?`<div class="manual-log-row">
+    <input type="text" id="manual-log-name" placeholder="Название задачи" aria-label="Название задачи" />
+    <input type="number" id="manual-log-hours" min="0" step="1" placeholder="Часы" aria-label="Затраченные часы" />
+    <input type="number" id="manual-log-minutes" min="0" max="59" step="1" placeholder="Минуты" aria-label="Затраченные минуты" />
+    <button class="btn btn-sm" onclick="saveManualLogEntry()" style="background:var(--green-dim);color:var(--green);border:1px solid #4ade8025;">✓</button>
+    <button class="btn btn-ghost btn-sm" onclick="cancelManualLogEntry()">✕</button>
+  </div>`:'';
+  if(!log.length){el.innerHTML=form+(manualLogFormOpen?'':'<div style="font-size:13px;color:var(--text3);padding:8px 0;">Записей пока нет</div>');return;}
+  el.innerHTML=form+log.map((e,i)=>`<div class="log-row">
     <div class="log-color" style="background:${colorMap[p.color]||colorMap.violet}"></div>
     <span class="log-name">${e.name}</span>
     <span class="log-dur">${formatShort(e.elapsed)}</span>
     <span class="log-time">${e.date||''} ${e.time}</span>
     <button class="btn-icon-only" onclick="deleteLogEntry(${i})">✕</button>
   </div>`).join('');
+  if(manualLogFormOpen) setTimeout(()=>document.getElementById('manual-log-name')?.focus(),0);
+}
+function openManualLogEntry() {
+  if(manualLogFormOpen)return;
+  manualLogFormOpen=true;
+  renderLog();
+}
+function cancelManualLogEntry() {
+  manualLogFormOpen=false;
+  renderLog();
+}
+function saveManualLogEntry() {
+  const p=getProject(currentProjectId); if(!p)return;
+  const name=document.getElementById('manual-log-name').value.trim();
+  const hours=Number(document.getElementById('manual-log-hours').value)||0;
+  const minutes=Number(document.getElementById('manual-log-minutes').value)||0;
+  if(!name){document.getElementById('manual-log-name').focus();return;}
+  if(!Number.isInteger(hours) || hours<0){document.getElementById('manual-log-hours').focus();return;}
+  if(!Number.isInteger(minutes) || minutes<0 || minutes>59){document.getElementById('manual-log-minutes').focus();return;}
+  if(hours===0 && minutes===0){document.getElementById('manual-log-hours').focus();return;}
+  if(!p.log)p.log=[];
+  const now=new Date();
+  p.log.unshift({
+    name,
+    elapsed:hours*3600000+minutes*60000,
+    time:now.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),
+    date:now.toLocaleDateString('ru-RU')
+  });
+  manualLogFormOpen=false;
+  save2();
+  renderProject();
 }
 
 // =================== PROJECTS CRUD ===================
@@ -793,8 +838,11 @@ function saveProject() {
 
 function editProject() { openModal(currentProjectId); }
 function deleteProject() {
-  if(!confirm('Удалить проект? Это действие нельзя отменить.'))return;
-  projects=projects.filter(p=>p.id!==currentProjectId);
+  const projectId=String(currentProjectId);
+  if(!getProject(projectId) || !confirm('Удалить проект? Это действие нельзя отменить.'))return;
+  if(timerRunning) stopTimer(false);
+  projects=projects.filter(p=>String(p.id)!==projectId);
+  currentProjectId=null;
   save2(); showView('dashboard');
 }
 function toggleArchive() {
