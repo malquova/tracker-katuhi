@@ -385,9 +385,16 @@ select option { background: var(--bg3); }
       <label>Название проекта</label>
       <input type="text" id="m-name" placeholder="Например, Видео для бренда X" />
     </div>
+    <div class="field">
+      <label>Тип оплаты</label>
+      <select id="m-pricing-mode" onchange="updatePricingFields()">
+        <option value="fixed">Стоимость за проект</option>
+        <option value="hourly">Стоимость за час</option>
+      </select>
+    </div>
     <div class="field-row">
       <div class="field">
-        <label>Бюджет</label>
+        <label id="m-budget-label">Стоимость проекта</label>
         <input type="number" id="m-budget" placeholder="Сколько заплатят" min="0" />
       </div>
       <div class="field" style="flex:0 0 90px;">
@@ -440,6 +447,8 @@ function formatShort(ms) { const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Ma
 function formatHrs(hrs) { const h=Math.floor(hrs),m=Math.round((hrs-h)*60); if(m===0)return h+'ч'; return h+'ч '+m+'м'; }
 function totalMs(proj) { return (proj.log||[]).reduce((s,e)=>s+e.elapsed,0); }
 function totalExp(proj) { return (proj.expenses||[]).reduce((s,e)=>s+e.amount,0); }
+function isHourly(proj) { return proj.pricingMode==='hourly'; }
+function grossIncome(proj, ms=totalMs(proj)) { return isHourly(proj) ? (proj.budget||0)*ms/3600000 : (proj.budget||0); }
 function fmt(proj, v) { return (proj.currency||'₽')+Math.round(v).toLocaleString('ru-RU'); }
 
 // =================== VIEWS ===================
@@ -490,7 +499,8 @@ function renderProjectList(containerId, list, archived=false) {
     const ms = totalMs(p);
     const h = Math.floor(ms/3600000), min = Math.floor((ms%3600000)/60000);
     const exp = totalExp(p);
-    const net = p.budget ? p.budget - exp : null;
+    const gross = grossIncome(p,ms);
+    const net = p.budget ? gross - exp : null;
     const hrs = ms / 3600000;
     const rate = (net && hrs > 0.001) ? net/hrs : null;
     let badgeHtml = '';
@@ -506,11 +516,11 @@ function renderProjectList(containerId, list, archived=false) {
       <div class="proj-color" style="background:${colorMap[p.color]||colorMap.violet}"></div>
       <div class="proj-info">
         <div class="proj-name">${p.name}</div>
-        <div class="proj-meta">${p.budget?fmt(p,p.budget)+' · ':''} создан ${new Date(p.createdAt).toLocaleDateString('ru-RU')}</div>
+        <div class="proj-meta">${p.budget?(isHourly(p)?fmt(p,p.budget)+'/ч':fmt(p,p.budget))+' · ':''} создан ${new Date(p.createdAt).toLocaleDateString('ru-RU')}</div>
       </div>
       <div class="proj-stats">
         <div class="proj-stat"><div class="proj-stat-val">${h}ч ${min}м</div><div class="proj-stat-label">времени</div></div>
-        ${p.budget?`<div class="proj-stat"><div class="proj-stat-val" style="color:${colorMap[p.color]||colorMap.violet}">${fmt(p,p.budget)}</div><div class="proj-stat-label">бюджет</div></div>`:''}
+        ${p.budget?`<div class="proj-stat"><div class="proj-stat-val" style="color:${colorMap[p.color]||colorMap.violet}">${fmt(p,isHourly(p)?gross:p.budget)}</div><div class="proj-stat-label">${isHourly(p)?'заработано':'бюджет'}</div></div>`:''}
       </div>
       ${badgeHtml}
     </div>`;
@@ -546,20 +556,21 @@ function renderProject() {
   const hrs = ms/3600000;
   const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000);
   const exp = totalExp(p);
-  const net = p.budget ? p.budget - exp : null;
+  const gross = grossIncome(p,ms);
+  const net = p.budget ? gross - exp : null;
   const rate = (net && hrs > 0.001) ? net/hrs : null;
 
   // Stats
   document.getElementById('pd-stats').innerHTML = `
     <div class="stat-box"><div class="stat-box-label">Потрачено времени</div><div class="stat-box-val">${h}ч ${m}м</div></div>
-    <div class="stat-box"><div class="stat-box-label">Бюджет</div><div class="stat-box-val accent">${p.budget?fmt(p,p.budget):'—'}</div></div>
+    <div class="stat-box"><div class="stat-box-label">${isHourly(p)?'Заработано':'Бюджет'}</div><div class="stat-box-val accent">${p.budget?fmt(p,isHourly(p)?gross:p.budget):'—'}</div></div>
     <div class="stat-box"><div class="stat-box-label">Издержки</div><div class="stat-box-val red">${exp>0?'−'+fmt(p,exp):'—'}</div></div>
     <div class="stat-box"><div class="stat-box-label">Чистый доход</div><div class="stat-box-val green">${net?fmt(p,net):'—'}</div></div>
   `;
 
   // Ideal hours
   const idealEl = document.getElementById('pd-ideal');
-  if(p.budget && p.desiredRate && net) {
+  if(!isHourly(p) && p.budget && p.desiredRate && net) {
     const idealHrs = net / p.desiredRate;
     document.getElementById('pd-ideal-num').textContent = formatHrs(idealHrs);
     document.getElementById('pd-ideal-sub').textContent = 'при ставке '+fmt(p,p.desiredRate)+'/ч';
@@ -622,7 +633,7 @@ function toggleTimer() {
         const ms = totalMs(p) + timerElapsed;
         const hrs = ms / 3600000;
         const exp = totalExp(p);
-        const net = p.budget - exp;
+        const net = grossIncome(p,ms) - exp;
         if(hrs > 0.001) {
           document.getElementById('pd-live-badge').style.display='';
           document.getElementById('pd-live-badge').textContent = fmt(p, net/hrs)+'/ч';
@@ -743,32 +754,41 @@ function openModal(editId=null) {
   document.getElementById('modal-title').textContent=editId?'Изменить проект':'Новый проект';
   document.getElementById('modal-save-btn').textContent=editId?'Сохранить':'Создать';
   document.getElementById('m-name').value=p?p.name:'';
+  document.getElementById('m-pricing-mode').value=p&&p.pricingMode==='hourly'?'hourly':'fixed';
   document.getElementById('m-budget').value=p&&p.budget?p.budget:'';
   document.getElementById('m-currency').value=p?p.currency:'₽';
   document.getElementById('m-desired').value=p&&p.desiredRate?p.desiredRate:'';
   selectedColor=p?p.color:'violet';
   document.querySelectorAll('.color-option').forEach(o=>{o.classList.toggle('selected',o.dataset.color===selectedColor);});
+  updatePricingFields();
   document.getElementById('modal-overlay').classList.add('open');
   setTimeout(()=>document.getElementById('m-name').focus(),100);
 }
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); editingProjectId=null; }
 function closeModalOutside(e) { if(e.target===document.getElementById('modal-overlay'))closeModal(); }
 function selectColor(el) { selectedColor=el.dataset.color; document.querySelectorAll('.color-option').forEach(o=>o.classList.toggle('selected',o===el)); }
+function updatePricingFields() {
+  const hourly=document.getElementById('m-pricing-mode').value==='hourly';
+  document.getElementById('m-budget-label').textContent=hourly?'Ставка за час':'Стоимость проекта';
+  document.getElementById('m-budget').placeholder=hourly?'Сколько платят за час':'Сколько заплатят';
+}
 
 function saveProject() {
   const name=document.getElementById('m-name').value.trim();
   if(!name)return document.getElementById('m-name').focus();
+  const wasEditing=Boolean(editingProjectId);
   const budget=parseFloat(document.getElementById('m-budget').value)||null;
+  const pricingMode=document.getElementById('m-pricing-mode').value;
   const currency=document.getElementById('m-currency').value;
   const desiredRate=parseFloat(document.getElementById('m-desired').value)||null;
   if(editingProjectId) {
     const p=getProject(editingProjectId);
-    if(p){p.name=name;p.budget=budget;p.currency=currency;p.desiredRate=desiredRate;p.color=selectedColor;}
+    if(p){p.name=name;p.budget=budget;p.pricingMode=pricingMode;p.currency=currency;p.desiredRate=desiredRate;p.color=selectedColor;}
   } else {
-    projects.push({id:Date.now(),name,budget,currency,desiredRate,color:selectedColor,archived:false,createdAt:Date.now(),log:[],expenses:[]});
+    projects.push({id:Date.now(),name,budget,pricingMode,currency,desiredRate,color:selectedColor,archived:false,createdAt:Date.now(),log:[],expenses:[]});
   }
   save2(); closeModal(); renderDashboard();
-  if(editingProjectId) renderProject();
+  if(wasEditing) renderProject();
 }
 
 function editProject() { openModal(currentProjectId); }
